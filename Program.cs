@@ -51,8 +51,8 @@ builder.Services.AddSwaggerGen(c =>
 
 // Configure EF Core
 builder.Services.AddDbContext<PharmacyDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection") 
-        ?? "Server=localhost,1433;Database=PharmacyDB;User Id=sa;Password=Pharmacy_password123;TrustServerCertificate=True;"));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection") 
+        ?? "Host=localhost;Database=PharmacyDB;Username=postgres;Password=Medicare@2024"));
 
 // Configure JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "SuperSecretKeyForJwtAuthenticationInPharmacyBillingService123!";
