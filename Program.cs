@@ -91,45 +91,70 @@ if (app.Environment.IsDevelopment() || true) // Enable swagger even if not devel
     app.UseSwaggerUI();
 }
 
-// Automatically apply migrations and seed data at startup
+// Automatically apply migrations and seed data at startup with a robust retry loop
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<PharmacyDbContext>();
-    try
-    {
-        dbContext.Database.EnsureCreated();
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"[PharmacyBillingService] Database.EnsureCreated failed or database already exists: {ex.Message}. Continuing...");
-    }
+    int maxRetries = 15;
+    int delaySeconds = 3;
+    bool success = false;
 
-    // Seed default users for each role if they don't exist
-    var defaultUsers = new[]
+    for (int i = 1; i <= maxRetries; i++)
     {
-        new { Username = "admin",        Password = "Admin@123",        RoleId = 1 },
-        new { Username = "doctor",       Password = "Doctor@123",       RoleId = 2 },
-        new { Username = "receptionist", Password = "Receptionist@123", RoleId = 3 },
-        new { Username = "patient",      Password = "Patient@123",      RoleId = 4 },
-    };
-
-    foreach (var u in defaultUsers)
-    {
-        if (!dbContext.Users.Any(x => x.Username == u.Username))
+        try
         {
-            using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var bytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(u.Password));
-            var hash = Convert.ToBase64String(bytes);
-
-            dbContext.Users.Add(new PharmacyBillingService.Models.User
-            {
-                Username     = u.Username,
-                PasswordHash = hash,
-                RoleId       = u.RoleId
-            });
+            dbContext.Database.EnsureCreated();
+            success = true;
+            break;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PharmacyBillingService Retry {i}/{maxRetries}] Failed to connect to DB: {ex.Message}. Retrying in {delaySeconds}s...");
+            System.Threading.Thread.Sleep(delaySeconds * 1000);
         }
     }
-    dbContext.SaveChanges();
+
+    if (success)
+    {
+        try
+        {
+            // Seed default users for each role if they don't exist
+            var defaultUsers = new[]
+            {
+                new { Username = "admin",        Password = "Admin@123",        RoleId = 1 },
+                new { Username = "doctor",       Password = "Doctor@123",       RoleId = 2 },
+                new { Username = "receptionist", Password = "Receptionist@123", RoleId = 3 },
+                new { Username = "patient",      Password = "Patient@123",      RoleId = 4 },
+            };
+
+            foreach (var u in defaultUsers)
+            {
+                if (!dbContext.Users.Any(x => x.Username == u.Username))
+                {
+                    using var sha256 = System.Security.Cryptography.SHA256.Create();
+                    var bytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(u.Password));
+                    var hash = Convert.ToBase64String(bytes);
+
+                    dbContext.Users.Add(new PharmacyBillingService.Models.User
+                    {
+                        Username     = u.Username,
+                        PasswordHash = hash,
+                        RoleId       = u.RoleId
+                    });
+                }
+            }
+            dbContext.SaveChanges();
+            Console.WriteLine("[PharmacyBillingService] Successfully ensured DB & seeded users.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PharmacyBillingService Seeding Error] {ex.Message}");
+        }
+    }
+    else
+    {
+        Console.WriteLine("[PharmacyBillingService FATAL] Could not connect to Pharmacy DB after all retries.");
+    }
 }
 
 app.UseHttpsRedirection();
