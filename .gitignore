@@ -1,0 +1,21 @@
+## Ignore Visual Studio temporary files, build results, and user files
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Re]leases/
+x64/
+x86/
+[Aa]rch/
+build/
+bin/
+obj/
+
+# Visual Studio Virtual Files
+.vs/
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.userprefs
