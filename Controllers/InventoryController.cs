@@ -10,7 +10,7 @@ namespace PharmacyBillingService.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Pharmacist")]
     public class InventoryController : ControllerBase
     {
         private readonly PharmacyDbContext _context;

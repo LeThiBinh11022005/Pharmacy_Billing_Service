@@ -51,8 +51,8 @@ builder.Services.AddSwaggerGen(c =>
 
 // Configure EF Core
 builder.Services.AddDbContext<PharmacyDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection") 
-        ?? "Server=localhost,1433;Database=PharmacyDB;User Id=sa;Password=Pharmacy_password123;TrustServerCertificate=True;"));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("PostgresConnection") 
+        ?? "Host=localhost;Port=5432;Database=medicare_full;Username=postgres;Password=YourPassword"));
 
 // Configure JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "SuperSecretKeyForJwtAuthenticationInPharmacyBillingService123!";
@@ -129,6 +129,113 @@ using (var scope = app.Services.CreateScope())
             });
         }
     }
+    
+    // Seed 10 real medications if empty
+    if (!dbContext.Medicines.Any())
+    {
+        var defaultMedicines = new List<PharmacyBillingService.Models.Medicine>
+        {
+            new PharmacyBillingService.Models.Medicine { Name = "Paracetamol 500mg", ActiveIngredient = "Paracetamol", Unit = "Viên", Price = 1500, StockQuantity = 520, ExpiryDate = DateTime.UtcNow.AddYears(2) },
+            new PharmacyBillingService.Models.Medicine { Name = "Amoxicillin 500mg", ActiveIngredient = "Amoxicillin", Unit = "Viên", Price = 2500, StockQuantity = 180, ExpiryDate = DateTime.UtcNow.AddYears(2) },
+            new PharmacyBillingService.Models.Medicine { Name = "Vitamin C 500mg", ActiveIngredient = "Ascorbic Acid", Unit = "Viên", Price = 1200, StockQuantity = 65, ExpiryDate = DateTime.UtcNow.AddYears(1) },
+            new PharmacyBillingService.Models.Medicine { Name = "Omeprazole 20mg", ActiveIngredient = "Omeprazole", Unit = "Viên", Price = 3200, StockQuantity = 240, ExpiryDate = DateTime.UtcNow.AddYears(2) },
+            new PharmacyBillingService.Models.Medicine { Name = "Cefixime 200mg", ActiveIngredient = "Cefixime", Unit = "Viên", Price = 4500, StockQuantity = 40, ExpiryDate = DateTime.UtcNow.AddYears(2) },
+            new PharmacyBillingService.Models.Medicine { Name = "Clorpheniramin 4mg", ActiveIngredient = "Chlorpheniramine", Unit = "Viên", Price = 900, StockQuantity = 310, ExpiryDate = DateTime.UtcNow.AddYears(3) },
+            new PharmacyBillingService.Models.Medicine { Name = "Dung dịch NaCl 0.9%", ActiveIngredient = "Sodium Chloride", Unit = "Chai", Price = 8000, StockQuantity = 90, ExpiryDate = DateTime.UtcNow.AddYears(1) },
+            new PharmacyBillingService.Models.Medicine { Name = "Metformin 500mg", ActiveIngredient = "Metformin", Unit = "Viên", Price = 2800, StockQuantity = 150, ExpiryDate = DateTime.UtcNow.AddYears(2) },
+            new PharmacyBillingService.Models.Medicine { Name = "Ibuprofen 400mg", ActiveIngredient = "Ibuprofen", Unit = "Viên", Price = 2000, StockQuantity = 80, ExpiryDate = DateTime.UtcNow.AddYears(2) },
+            new PharmacyBillingService.Models.Medicine { Name = "Acetylcistein 200mg", ActiveIngredient = "Acetylcysteine", Unit = "Hộp", Price = 75000, StockQuantity = 30, ExpiryDate = DateTime.UtcNow.AddYears(2) }
+        };
+        dbContext.Medicines.AddRange(defaultMedicines);
+        Console.WriteLine("[PharmacyBillingService] Seeded 10 real medicines successfully!");
+    }
+
+    // Seed sample bills for patient (PatientId=4) if empty
+    if (!dbContext.Bills.Any())
+    {
+        var sampleBills = new List<PharmacyBillingService.Models.Bill>
+        {
+            new PharmacyBillingService.Models.Bill
+            {
+                PatientId = 4,
+                ExaminationFee = 150000,
+                MedicineFee = 85000,
+                TotalAmount = 235000,
+                Status = "Paid",
+                CreatedAt = DateTime.UtcNow.AddDays(-15)
+            },
+            new PharmacyBillingService.Models.Bill
+            {
+                PatientId = 4,
+                ExaminationFee = 200000,
+                MedicineFee = 320000,
+                TotalAmount = 520000,
+                Status = "Pending",
+                CreatedAt = DateTime.UtcNow.AddDays(-7)
+            },
+            new PharmacyBillingService.Models.Bill
+            {
+                PatientId = 4,
+                ExaminationFee = 0,
+                MedicineFee = 175000,
+                TotalAmount = 175000,
+                Status = "Paid",
+                CreatedAt = DateTime.UtcNow.AddDays(-3)
+            },
+            new PharmacyBillingService.Models.Bill
+            {
+                PatientId = 4,
+                ExaminationFee = 300000,
+                MedicineFee = 0,
+                TotalAmount = 300000,
+                Status = "Pending",
+                CreatedAt = DateTime.UtcNow.AddDays(-1)
+            },
+            new PharmacyBillingService.Models.Bill
+            {
+                PatientId = 4,
+                ExaminationFee = 150000,
+                MedicineFee = 450000,
+                TotalAmount = 600000,
+                Status = "Paid",
+                CreatedAt = DateTime.UtcNow.AddHours(-12)
+            }
+        };
+        dbContext.Bills.AddRange(sampleBills);
+        Console.WriteLine("[PharmacyBillingService] Seeded 5 sample bills for patient successfully!");
+    }
+
+    // Seed sample prescription event logs for patient if empty
+    if (!dbContext.EventLogs.Any())
+    {
+        var sampleEvents = new List<PharmacyBillingService.Models.EventLog>
+        {
+            new PharmacyBillingService.Models.EventLog
+            {
+                EventType = "prescription.created",
+                Payload = "{\"PrescriptionId\":3102,\"PatientId\":4,\"Medicines\":[{\"MedicineId\":1,\"Quantity\":10},{\"MedicineId\":3,\"Quantity\":5}]}",
+                Status = "Processed",
+                Timestamp = DateTime.UtcNow.AddDays(-5)
+            },
+            new PharmacyBillingService.Models.EventLog
+            {
+                EventType = "prescription.created",
+                Payload = "{\"PrescriptionId\":3148,\"PatientId\":4,\"Medicines\":[{\"MedicineId\":2,\"Quantity\":20},{\"MedicineId\":4,\"Quantity\":15},{\"MedicineId\":6,\"Quantity\":30}]}",
+                Status = "Processed",
+                Timestamp = DateTime.UtcNow.AddDays(-2)
+            },
+            new PharmacyBillingService.Models.EventLog
+            {
+                EventType = "prescription.created",
+                Payload = "{\"PrescriptionId\":3205,\"PatientId\":4,\"Medicines\":[{\"MedicineId\":5,\"Quantity\":12},{\"MedicineId\":9,\"Quantity\":8}]}",
+                Status = "Success",
+                Timestamp = DateTime.UtcNow.AddHours(-6)
+            }
+        };
+        dbContext.EventLogs.AddRange(sampleEvents);
+        Console.WriteLine("[PharmacyBillingService] Seeded 3 sample prescription events for patient successfully!");
+    }
+
     dbContext.SaveChanges();
 }
 

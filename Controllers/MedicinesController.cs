@@ -19,14 +19,14 @@ namespace PharmacyBillingService.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Admin,Doctor")]
+        [Authorize(Roles = "Admin,Doctor,Pharmacist,Receptionist")]
         public async Task<ActionResult<IEnumerable<Medicine>>> GetMedicines()
         {
             return await _context.Medicines.ToListAsync();
         }
 
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin,Doctor")]
+        [Authorize(Roles = "Admin,Doctor,Pharmacist,Receptionist")]
         public async Task<ActionResult<Medicine>> GetMedicine(int id)
         {
             var medicine = await _context.Medicines.FindAsync(id);
@@ -40,7 +40,7 @@ namespace PharmacyBillingService.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Pharmacist")]
         public async Task<ActionResult<Medicine>> PostMedicine(Medicine medicine)
         {
             _context.Medicines.Add(medicine);
@@ -50,7 +50,7 @@ namespace PharmacyBillingService.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Pharmacist")]
         public async Task<IActionResult> PutMedicine(int id, Medicine medicine)
         {
             if (id != medicine.Id)
@@ -80,7 +80,7 @@ namespace PharmacyBillingService.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Pharmacist")]
         public async Task<IActionResult> DeleteMedicine(int id)
         {
             var medicine = await _context.Medicines.FindAsync(id);
