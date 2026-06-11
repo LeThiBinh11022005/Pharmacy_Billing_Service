@@ -12,6 +12,7 @@ namespace PharmacyBillingService.Data
         public DbSet<Medicine> Medicines { get; set; }
         public DbSet<Bill> Bills { get; set; }
         public DbSet<EventLog> EventLogs { get; set; }
+        public DbSet<Supplier> Suppliers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -21,7 +22,8 @@ namespace PharmacyBillingService.Data
                 new Role { Id = 1, Name = "Admin" },
                 new Role { Id = 2, Name = "Doctor" },
                 new Role { Id = 3, Name = "Receptionist" },
-                new Role { Id = 4, Name = "Patient" }
+                new Role { Id = 4, Name = "Pharmacist" },
+                new Role { Id = 5, Name = "Patient" }
             );
 
             // Configure decimal properties

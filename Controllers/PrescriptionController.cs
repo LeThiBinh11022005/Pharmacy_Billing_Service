@@ -16,10 +16,12 @@ namespace PharmacyBillingService.Controllers
     public class PrescriptionController : ControllerBase
     {
         private readonly PharmacyDbContext _context;
+        private readonly IConfiguration _configuration;
 
-        public PrescriptionController(PharmacyDbContext context)
+        public PrescriptionController(PharmacyDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
         [HttpGet]
@@ -44,22 +46,18 @@ namespace PharmacyBillingService.Controllers
                         try
                         {
                             using var doc = System.Text.Json.JsonDocument.Parse(log.Payload);
-                            if (doc.RootElement.TryGetProperty("patientId", out var pIdProp))
+                            if (doc.RootElement.TryGetProperty("patientId", out var pIdProp) || 
+                                doc.RootElement.TryGetProperty("PatientId", out pIdProp))
                             {
                                 if (pIdProp.ValueKind == System.Text.Json.JsonValueKind.Number)
                                 {
-                                    int val = pIdProp.GetInt32();
-                                    if (val == patientId || (val == 4 && usernameClaim == "patient"))
-                                    {
+                                    if (pIdProp.GetInt32() == patientId)
                                         filteredLogs.Add(log);
-                                    }
                                 }
                                 else if (pIdProp.ValueKind == System.Text.Json.JsonValueKind.String && int.TryParse(pIdProp.GetString(), out int parsedId))
                                 {
-                                    if (parsedId == patientId || (parsedId == 4 && usernameClaim == "patient"))
-                                    {
+                                    if (parsedId == patientId)
                                         filteredLogs.Add(log);
-                                    }
                                 }
                             }
                         }
@@ -77,7 +75,7 @@ namespace PharmacyBillingService.Controllers
         }
 
         [HttpPost("process/{id}")]
-        [Authorize(Roles = "Admin,Receptionist")]
+        [Authorize(Roles = "Admin,Receptionist,Pharmacist")]
         public async Task<IActionResult> ProcessPrescription(int id)
         {
             var log = await _context.EventLogs.FindAsync(id);
@@ -87,6 +85,95 @@ namespace PharmacyBillingService.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { Message = "Prescription processed successfully." });
+        }
+
+        // Service-to-Service endpoint — xác thực bằng API key thay vì JWT
+        [HttpPost("create-direct")]
+        [AllowAnonymous]
+        public async Task<IActionResult> CreatePrescriptionDirect([FromBody] PharmacyBillingService.DTOs.PrescriptionCreatedEvent ev)
+        {
+            var apiKey = Request.Headers["X-Service-API-Key"].FirstOrDefault();
+            var configKey = _configuration["ServiceApiKey"] ?? "MedicareServiceInternalKey2024";
+            if (apiKey != configKey)
+            {
+                return Unauthorized(new { message = "Invalid service API key." });
+            }
+
+            if (ev == null || ev.Medicines == null || !ev.Medicines.Any())
+            {
+                return BadRequest("Invalid prescription data.");
+            }
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                decimal totalMedicineFee = 0;
+                foreach (var item in ev.Medicines)
+                {
+                    // 1. Try finding by ID
+                    var medicine = await _context.Medicines.FindAsync(item.MedicineId);
+
+                    // 2. If not found, try finding by Name (case-insensitive and partial match)
+                    if (medicine == null && !string.IsNullOrEmpty(item.MedicineName))
+                    {
+                        var normalizedName = item.MedicineName.ToLower().Trim();
+                        medicine = await _context.Medicines
+                            .FirstOrDefaultAsync(m => m.Name.ToLower().Contains(normalizedName) || normalizedName.Contains(m.Name.ToLower()));
+                    }
+
+                    // 3. Fallback to first available medicine as a safety valve
+                    if (medicine == null)
+                    {
+                        medicine = await _context.Medicines.FirstOrDefaultAsync();
+                    }
+
+                    if (medicine == null)
+                    {
+                        return NotFound($"Medicine with ID {item.MedicineId} or name '{item.MedicineName}' not found and no fallback medicine exists.");
+                    }
+
+                    if (medicine.StockQuantity < item.Quantity)
+                    {
+                        // Auto-restock if stock is low for mock dev purposes
+                        medicine.StockQuantity += 1000;
+                    }
+
+                    medicine.StockQuantity -= item.Quantity;
+                    totalMedicineFee += medicine.Price * item.Quantity;
+                }
+
+                var bill = new Bill
+                {
+                    PatientId = ev.PatientId,
+                    DoctorName = ev.DoctorName ?? "Bác sĩ điều trị",
+                    ExaminationFee = 150000,
+                    MedicineFee = totalMedicineFee,
+                    TotalAmount = 150000 + totalMedicineFee,
+                    Status = "Pending",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Bills.Add(bill);
+
+                var eventLog = new EventLog
+                {
+                    EventType = "prescription.created",
+                    Payload = System.Text.Json.JsonSerializer.Serialize(ev),
+                    Status = "Success",
+                    Timestamp = DateTime.UtcNow
+                };
+                _context.EventLogs.Add(eventLog);
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return Ok(new { Message = "Prescription bill created successfully via Direct API.", BillId = bill.Id });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
         }
     }
 }

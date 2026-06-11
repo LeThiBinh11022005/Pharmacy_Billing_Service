@@ -3,7 +3,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PharmacyBillingService.Data;
+using PharmacyBillingService.Models;
 using System.Text;
+
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,9 +53,11 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // Configure EF Core
+var pharmConnString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? builder.Configuration.GetConnectionString("PostgresConnection")
+    ?? "Host=localhost;Port=5436;Database=PharmacyDB;Username=postgres;Password=Medicare@2024";
 builder.Services.AddDbContext<PharmacyDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("PostgresConnection") 
-        ?? "Host=localhost;Port=5432;Database=medicare_full;Username=postgres;Password=YourPassword"));
+    options.UseNpgsql(pharmConnString));
 
 // Configure JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "SuperSecretKeyForJwtAuthenticationInPharmacyBillingService123!";
@@ -67,8 +72,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "PharmacyBillingService",
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "PharmacyBillingService",
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "ClinicAuthService",
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "ClinicUsers",
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
@@ -104,6 +109,27 @@ using (var scope = app.Services.CreateScope())
         try
         {
             dbContext.Database.EnsureCreated();
+            
+            // Self-healing check: Ensure the Suppliers table exists in the Postgres database
+            var conn = dbContext.Database.GetDbConnection();
+            using (var cmd = conn.CreateCommand())
+            {
+                if (conn.State != System.Data.ConnectionState.Open) conn.Open();
+                cmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS ""Suppliers"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""Code"" TEXT NOT NULL,
+                        ""Name"" TEXT NOT NULL,
+                        ""Phone"" TEXT NOT NULL,
+                        ""Email"" TEXT NOT NULL,
+                        ""Address"" TEXT NOT NULL,
+                        ""Group"" TEXT NOT NULL,
+                        ""Status"" TEXT NOT NULL,
+                        ""CreatedDate"" TIMESTAMP WITH TIME ZONE NOT NULL
+                    );";
+                cmd.ExecuteNonQuery();
+            }
+
             success = true;
             break;
         }
@@ -118,140 +144,25 @@ using (var scope = app.Services.CreateScope())
     {
         try
         {
-            // Seed 10 real medications if empty
+            // Seed default medicines only if the table is empty
             if (!dbContext.Medicines.Any())
             {
-                var defaultMedicines = new List<PharmacyBillingService.Models.Medicine>
+                var defaultMedicines = new List<Medicine>
                 {
-                    new PharmacyBillingService.Models.Medicine { Name = "Paracetamol 500mg", ActiveIngredient = "Paracetamol", Unit = "Viên", Price = 1500, StockQuantity = 520, ExpiryDate = DateTime.UtcNow.AddYears(2) },
-                    new PharmacyBillingService.Models.Medicine { Name = "Amoxicillin 500mg", ActiveIngredient = "Amoxicillin", Unit = "Viên", Price = 2500, StockQuantity = 180, ExpiryDate = DateTime.UtcNow.AddYears(2) },
-                    new PharmacyBillingService.Models.Medicine { Name = "Vitamin C 500mg", ActiveIngredient = "Ascorbic Acid", Unit = "Viên", Price = 1200, StockQuantity = 65, ExpiryDate = DateTime.UtcNow.AddYears(1) },
-                    new PharmacyBillingService.Models.Medicine { Name = "Omeprazole 20mg", ActiveIngredient = "Omeprazole", Unit = "Viên", Price = 3200, StockQuantity = 240, ExpiryDate = DateTime.UtcNow.AddYears(2) },
-                    new PharmacyBillingService.Models.Medicine { Name = "Cefixime 200mg", ActiveIngredient = "Cefixime", Unit = "Viên", Price = 4500, StockQuantity = 40, ExpiryDate = DateTime.UtcNow.AddYears(2) },
-                    new PharmacyBillingService.Models.Medicine { Name = "Clorpheniramin 4mg", ActiveIngredient = "Chlorpheniramine", Unit = "Viên", Price = 900, StockQuantity = 310, ExpiryDate = DateTime.UtcNow.AddYears(3) },
-                    new PharmacyBillingService.Models.Medicine { Name = "Dung dịch NaCl 0.9%", ActiveIngredient = "Sodium Chloride", Unit = "Chai", Price = 8000, StockQuantity = 90, ExpiryDate = DateTime.UtcNow.AddYears(1) },
-                    new PharmacyBillingService.Models.Medicine { Name = "Metformin 500mg", ActiveIngredient = "Metformin", Unit = "Viên", Price = 2800, StockQuantity = 150, ExpiryDate = DateTime.UtcNow.AddYears(2) },
-                    new PharmacyBillingService.Models.Medicine { Name = "Ibuprofen 400mg", ActiveIngredient = "Ibuprofen", Unit = "Viên", Price = 2000, StockQuantity = 80, ExpiryDate = DateTime.UtcNow.AddYears(2) },
-                    new PharmacyBillingService.Models.Medicine { Name = "Acetylcistein 200mg", ActiveIngredient = "Acetylcysteine", Unit = "Hộp", Price = 75000, StockQuantity = 30, ExpiryDate = DateTime.UtcNow.AddYears(2) }
+                    new Medicine { Name = "Paracetamol 500mg", ActiveIngredient = "Paracetamol", Unit = "Viên", Price = 2000, StockQuantity = 1000, ExpiryDate = DateTime.UtcNow.AddYears(2) },
+                    new Medicine { Name = "Amoxicillin 500mg", ActiveIngredient = "Amoxicillin", Unit = "Viên", Price = 5000, StockQuantity = 500, ExpiryDate = DateTime.UtcNow.AddYears(2) },
+                    new Medicine { Name = "Ibuprofen 400mg", ActiveIngredient = "Ibuprofen", Unit = "Viên", Price = 3000, StockQuantity = 800, ExpiryDate = DateTime.UtcNow.AddYears(2) },
+                    new Medicine { Name = "Cetirizine 10mg", ActiveIngredient = "Cetirizine", Unit = "Viên", Price = 1500, StockQuantity = 1200, ExpiryDate = DateTime.UtcNow.AddYears(2) },
+                    new Medicine { Name = "Metformin 500mg", ActiveIngredient = "Metformin", Unit = "Viên", Price = 4000, StockQuantity = 600, ExpiryDate = DateTime.UtcNow.AddYears(2) }
                 };
-                dbContext.Medicines.AddRange(defaultMedicines);
-                Console.WriteLine("[PharmacyBillingService] Seeded 10 real medicines successfully!");
+                dbContext.Medicines.AddRange(defaultMedicines.ToArray());
+                dbContext.SaveChanges();
+                Console.WriteLine("[PharmacyBillingService] Seeded default medicines successfully.");
             }
-
-            // Seed sample bills for patient (PatientId=4) if empty
-            if (!dbContext.Bills.Any())
+            else
             {
-                var sampleBills = new List<PharmacyBillingService.Models.Bill>
-                {
-                    new PharmacyBillingService.Models.Bill
-                    {
-                        PatientId = 4,
-                        ExaminationFee = 150000,
-                        MedicineFee = 85000,
-                        TotalAmount = 235000,
-                        Status = "Paid",
-                        CreatedAt = DateTime.UtcNow.AddDays(-15)
-                    },
-                    new PharmacyBillingService.Models.Bill
-                    {
-                        PatientId = 4,
-                        ExaminationFee = 200000,
-                        MedicineFee = 320000,
-                        TotalAmount = 520000,
-                        Status = "Pending",
-                        CreatedAt = DateTime.UtcNow.AddDays(-7)
-                    },
-                    new PharmacyBillingService.Models.Bill
-                    {
-                        PatientId = 4,
-                        ExaminationFee = 0,
-                        MedicineFee = 175000,
-                        TotalAmount = 175000,
-                        Status = "Paid",
-                        CreatedAt = DateTime.UtcNow.AddDays(-3)
-                    },
-                    new PharmacyBillingService.Models.Bill
-                    {
-                        PatientId = 4,
-                        ExaminationFee = 300000,
-                        MedicineFee = 0,
-                        TotalAmount = 300000,
-                        Status = "Pending",
-                        CreatedAt = DateTime.UtcNow.AddDays(-1)
-                    },
-                    new PharmacyBillingService.Models.Bill
-                    {
-                        PatientId = 4,
-                        ExaminationFee = 150000,
-                        MedicineFee = 450000,
-                        TotalAmount = 600000,
-                        Status = "Paid",
-                        CreatedAt = DateTime.UtcNow.AddHours(-12)
-                    }
-                };
-                dbContext.Bills.AddRange(sampleBills);
-                Console.WriteLine("[PharmacyBillingService] Seeded 5 sample bills for patient successfully!");
+                Console.WriteLine("[PharmacyBillingService] Medicines already seeded. Skipping seeding.");
             }
-
-            // Seed sample prescription event logs for patient if empty
-            if (!dbContext.EventLogs.Any())
-            {
-                var sampleEvents = new List<PharmacyBillingService.Models.EventLog>
-                {
-                    new PharmacyBillingService.Models.EventLog
-                    {
-                        EventType = "prescription.created",
-                        Payload = "{\"PrescriptionId\":3102,\"PatientId\":4,\"Medicines\":[{\"MedicineId\":1,\"Quantity\":10},{\"MedicineId\":3,\"Quantity\":5}]}",
-                        Status = "Processed",
-                        Timestamp = DateTime.UtcNow.AddDays(-5)
-                    },
-                    new PharmacyBillingService.Models.EventLog
-                    {
-                        EventType = "prescription.created",
-                        Payload = "{\"PrescriptionId\":3148,\"PatientId\":4,\"Medicines\":[{\"MedicineId\":2,\"Quantity\":20},{\"MedicineId\":4,\"Quantity\":15},{\"MedicineId\":6,\"Quantity\":30}]}",
-                        Status = "Processed",
-                        Timestamp = DateTime.UtcNow.AddDays(-2)
-                    },
-                    new PharmacyBillingService.Models.EventLog
-                    {
-                        EventType = "prescription.created",
-                        Payload = "{\"PrescriptionId\":3205,\"PatientId\":4,\"Medicines\":[{\"MedicineId\":5,\"Quantity\":12},{\"MedicineId\":9,\"Quantity\":8}]}",
-                        Status = "Success",
-                        Timestamp = DateTime.UtcNow.AddHours(-6)
-                    }
-                };
-                dbContext.EventLogs.AddRange(sampleEvents);
-                Console.WriteLine("[PharmacyBillingService] Seeded 3 sample prescription events for patient successfully!");
-            }
-
-            // Seed default users for each role if they don't exist
-            var defaultUsers = new[]
-            {
-                new { Username = "admin",        Password = "Admin@123",        RoleId = 1 },
-                new { Username = "doctor",       Password = "Doctor@123",       RoleId = 2 },
-                new { Username = "receptionist", Password = "Receptionist@123", RoleId = 3 },
-                new { Username = "patient",      Password = "Patient@123",      RoleId = 4 },
-            };
-
-            foreach (var u in defaultUsers)
-            {
-                if (!dbContext.Users.Any(x => x.Username == u.Username))
-                {
-                    using var sha256 = System.Security.Cryptography.SHA256.Create();
-                    var bytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(u.Password));
-                    var hash = Convert.ToBase64String(bytes);
-
-                    dbContext.Users.Add(new PharmacyBillingService.Models.User
-                    {
-                        Username     = u.Username,
-                        PasswordHash = hash,
-                        RoleId       = u.RoleId
-                    });
-                }
-            }
-
-            dbContext.SaveChanges();
-            Console.WriteLine("[PharmacyBillingService] Successfully ensured DB & seeded all data.");
         }
         catch (Exception ex)
         {

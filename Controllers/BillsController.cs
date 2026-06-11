@@ -25,17 +25,16 @@ namespace PharmacyBillingService.Controllers
             if (User.IsInRole("Patient"))
             {
                 var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var usernameClaim = User.Identity?.Name ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
                 if (int.TryParse(userIdClaim, out int patientId))
                 {
                     return await _context.Bills
-                        .Where(b => b.PatientId == patientId || (b.PatientId == 4 && usernameClaim == "patient"))
+                        .Where(b => b.PatientId == patientId)
+                        .OrderByDescending(b => b.CreatedAt)
                         .ToListAsync();
                 }
-                // Fallback to default patient ID 4 if parsing fails
-                return await _context.Bills.Where(b => b.PatientId == 4).ToListAsync();
+                return Ok(new List<Bill>());
             }
-            return await _context.Bills.ToListAsync();
+            return await _context.Bills.OrderByDescending(b => b.CreatedAt).ToListAsync();
         }
 
         [HttpGet("{id}")]
@@ -52,10 +51,9 @@ namespace PharmacyBillingService.Controllers
             if (User.IsInRole("Patient"))
             {
                 var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var usernameClaim = User.Identity?.Name ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
                 if (int.TryParse(userIdClaim, out int patientId))
                 {
-                    if (bill.PatientId != patientId && !(bill.PatientId == 4 && usernameClaim == "patient"))
+                    if (bill.PatientId != patientId)
                     {
                         return Forbid();
                     }

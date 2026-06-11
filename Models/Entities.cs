@@ -36,6 +36,7 @@ namespace PharmacyBillingService.Models
     {
         public int Id { get; set; }
         public int PatientId { get; set; }
+        public string? DoctorName { get; set; }
         public decimal ExaminationFee { get; set; }
         public decimal MedicineFee { get; set; }
         public decimal TotalAmount { get; set; }
@@ -51,5 +52,18 @@ namespace PharmacyBillingService.Models
         public string Status { get; set; } = string.Empty; // e.g. "Success", "Failed"
         public string? ErrorMessage { get; set; }
         public DateTime Timestamp { get; set; }
+    }
+
+    public class Supplier
+    {
+        public int Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Address { get; set; } = string.Empty;
+        public string Group { get; set; } = string.Empty; // e.g., 'Dược phẩm', 'Vật tư y tế'
+        public string Status { get; set; } = "active";    // 'active' or 'inactive'
+        public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     }
 }
