@@ -19,14 +19,14 @@ namespace PharmacyBillingService.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Admin,Doctor,Pharmacist,Receptionist")]
+        [Authorize(Roles = "Admin,Doctor,Pharmacist,Receptionist,Cashier")]
         public async Task<ActionResult<IEnumerable<Medicine>>> GetMedicines()
         {
             return await _context.Medicines.ToListAsync();
         }
 
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin,Doctor,Pharmacist,Receptionist")]
+        [Authorize(Roles = "Admin,Doctor,Pharmacist,Receptionist,Cashier")]
         public async Task<ActionResult<Medicine>> GetMedicine(int id)
         {
             var medicine = await _context.Medicines.FindAsync(id);

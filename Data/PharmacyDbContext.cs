@@ -13,6 +13,8 @@ namespace PharmacyBillingService.Data
         public DbSet<Bill> Bills { get; set; }
         public DbSet<EventLog> EventLogs { get; set; }
         public DbSet<Supplier> Suppliers { get; set; }
+        public DbSet<ImportBill> ImportBills { get; set; }
+        public DbSet<ImportBillMedication> ImportBillMedications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -41,6 +43,26 @@ namespace PharmacyBillingService.Data
 
             modelBuilder.Entity<Bill>()
                 .Property(b => b.TotalAmount)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<ImportBill>()
+                .Property(ib => ib.GoodsTotal)
+                .HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ImportBill>()
+                .Property(ib => ib.DiscountTotal)
+                .HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ImportBill>()
+                .Property(ib => ib.VatTotal)
+                .HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ImportBill>()
+                .Property(ib => ib.FinalTotal)
+                .HasColumnType("decimal(18,2)");
+
+            modelBuilder.Entity<ImportBillMedication>()
+                .Property(ibm => ibm.Price)
+                .HasColumnType("decimal(18,2)");
+            modelBuilder.Entity<ImportBillMedication>()
+                .Property(ibm => ibm.Total)
                 .HasColumnType("decimal(18,2)");
         }
     }

@@ -110,7 +110,7 @@ using (var scope = app.Services.CreateScope())
         {
             dbContext.Database.EnsureCreated();
             
-            // Self-healing check: Ensure the Suppliers table exists in the Postgres database
+            // Self-healing check: Ensure the Suppliers, ImportBills, and ImportBillMedications tables exist in the Postgres database
             var conn = dbContext.Database.GetDbConnection();
             using (var cmd = conn.CreateCommand())
             {
@@ -126,6 +126,32 @@ using (var scope = app.Services.CreateScope())
                         ""Group"" TEXT NOT NULL,
                         ""Status"" TEXT NOT NULL,
                         ""CreatedDate"" TIMESTAMP WITH TIME ZONE NOT NULL
+                    );
+                    
+                    CREATE TABLE IF NOT EXISTS ""ImportBills"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""SupplierCode"" TEXT NOT NULL,
+                        ""SupplierName"" TEXT NOT NULL,
+                        ""Date"" TIMESTAMP WITH TIME ZONE NOT NULL,
+                        ""Creator"" TEXT NOT NULL,
+                        ""Note"" TEXT NOT NULL,
+                        ""GoodsTotal"" DECIMAL(18,2) NOT NULL,
+                        ""DiscountTotal"" DECIMAL(18,2) NOT NULL,
+                        ""VatTotal"" DECIMAL(18,2) NOT NULL,
+                        ""FinalTotal"" DECIMAL(18,2) NOT NULL
+                    );
+
+                    CREATE TABLE IF NOT EXISTS ""ImportBillMedications"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""ImportBillId"" INTEGER NOT NULL,
+                        ""Code"" TEXT NOT NULL,
+                        ""Name"" TEXT NOT NULL,
+                        ""Batch"" TEXT NOT NULL,
+                        ""ExpiryDate"" TIMESTAMP WITH TIME ZONE NOT NULL,
+                        ""Qty"" INTEGER NOT NULL,
+                        ""Unit"" TEXT NOT NULL,
+                        ""Price"" DECIMAL(18,2) NOT NULL,
+                        ""Total"" DECIMAL(18,2) NOT NULL
                     );";
                 cmd.ExecuteNonQuery();
             }

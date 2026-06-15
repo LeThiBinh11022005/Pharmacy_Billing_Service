@@ -66,4 +66,34 @@ namespace PharmacyBillingService.Models
         public string Status { get; set; } = "active";    // 'active' or 'inactive'
         public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     }
+
+    public class ImportBill
+    {
+        public int Id { get; set; }
+        public string SupplierCode { get; set; } = string.Empty;
+        public string SupplierName { get; set; } = string.Empty;
+        public DateTime Date { get; set; } = DateTime.UtcNow;
+        public string Creator { get; set; } = "admin";
+        public string Note { get; set; } = string.Empty;
+        public decimal GoodsTotal { get; set; }
+        public decimal DiscountTotal { get; set; }
+        public decimal VatTotal { get; set; }
+        public decimal FinalTotal { get; set; }
+        
+        public ICollection<ImportBillMedication> Medications { get; set; } = new List<ImportBillMedication>();
+    }
+
+    public class ImportBillMedication
+    {
+        public int Id { get; set; }
+        public int ImportBillId { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Batch { get; set; } = string.Empty;
+        public DateTime ExpiryDate { get; set; } = DateTime.UtcNow.AddYears(2);
+        public int Qty { get; set; }
+        public string Unit { get; set; } = "Viên";
+        public decimal Price { get; set; }
+        public decimal Total { get; set; }
+    }
 }
