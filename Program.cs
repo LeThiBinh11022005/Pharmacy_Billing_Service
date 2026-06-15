@@ -152,7 +152,9 @@ using (var scope = app.Services.CreateScope())
                         ""Unit"" TEXT NOT NULL,
                         ""Price"" DECIMAL(18,2) NOT NULL,
                         ""Total"" DECIMAL(18,2) NOT NULL
-                    );";
+                    );
+                    
+                    ALTER TABLE ""Bills"" ADD COLUMN IF NOT EXISTS ""DoctorName"" TEXT NULL;";
                 cmd.ExecuteNonQuery();
             }
 
