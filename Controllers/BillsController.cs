@@ -26,7 +26,7 @@ namespace PharmacyBillingService.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Admin,Receptionist,Pharmacist,Cashier,Patient")]
+        [Authorize(Roles = "Admin,Receptionist,Pharmacist,Cashier,Patient,Doctor")]
         public async Task<ActionResult<IEnumerable<Bill>>> GetBills()
         {
             try
@@ -53,7 +53,7 @@ namespace PharmacyBillingService.Controllers
         }
 
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin,Receptionist,Pharmacist,Cashier,Patient")]
+        [Authorize(Roles = "Admin,Receptionist,Pharmacist,Cashier,Patient,Doctor")]
         public async Task<ActionResult<Bill>> GetBill(int id)
         {
             try
@@ -109,7 +109,7 @@ namespace PharmacyBillingService.Controllers
         }
 
         [HttpPost("{id}/pay")]
-        [Authorize(Roles = "Admin,Receptionist,Pharmacist,Cashier,Patient")]
+        [Authorize(Roles = "Admin,Receptionist,Pharmacist,Cashier,Patient,Doctor")]
         public async Task<IActionResult> PayBill(int id)
         {
             try
