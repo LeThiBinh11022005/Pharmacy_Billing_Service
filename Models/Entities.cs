@@ -70,6 +70,7 @@ namespace PharmacyBillingService.Models
     public class ImportBill
     {
         public int Id { get; set; }
+        public string? Code { get; set; } = string.Empty;
         public string SupplierCode { get; set; } = string.Empty;
         public string SupplierName { get; set; } = string.Empty;
         public DateTime Date { get; set; } = DateTime.UtcNow;

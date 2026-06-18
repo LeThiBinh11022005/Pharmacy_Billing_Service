@@ -154,7 +154,8 @@ using (var scope = app.Services.CreateScope())
                         ""Total"" DECIMAL(18,2) NOT NULL
                     );
                     
-                    ALTER TABLE ""Bills"" ADD COLUMN IF NOT EXISTS ""DoctorName"" TEXT NULL;";
+                    ALTER TABLE ""Bills"" ADD COLUMN IF NOT EXISTS ""DoctorName"" TEXT NULL;
+                    ALTER TABLE ""ImportBills"" ADD COLUMN IF NOT EXISTS ""Code"" TEXT NULL;";
                 cmd.ExecuteNonQuery();
             }
 

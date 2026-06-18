@@ -34,15 +34,19 @@ namespace PharmacyBillingService.Controllers
         [HttpPost]
         public async Task<ActionResult<ImportBill>> PostImportBill(ImportBill importBill)
         {
-            // Set date to UTC if not specified
             if (importBill.Date == default)
             {
                 importBill.Date = DateTime.UtcNow;
             }
 
+            // Auto-generate code PN0001, PN0002...
+            var maxId = await _context.ImportBills.MaxAsync(ib => (int?)ib.Id) ?? 0;
+            importBill.Code = "PN" + (maxId + 1).ToString("D4");
+
             _context.ImportBills.Add(importBill);
-            
-            // For each medication, update or create the medicine in the inventory
+
+            var medicineChanges = new List<object>();
+
             foreach (var med in importBill.Medications)
             {
                 var medicineNameClean = med.Name?.Trim();
@@ -51,16 +55,16 @@ namespace PharmacyBillingService.Controllers
                 var dbMed = await _context.Medicines
                     .FirstOrDefaultAsync(m => m.Name.ToLower() == medicineNameClean.ToLower());
 
+                int beforeStock = 0;
                 if (dbMed != null)
                 {
-                    // Update existing medicine stock and price
+                    beforeStock = dbMed.StockQuantity;
                     dbMed.StockQuantity += med.Qty;
                     dbMed.Price = med.Price;
                     dbMed.ExpiryDate = med.ExpiryDate;
                 }
                 else
                 {
-                    // Create new medicine
                     var newMed = new Medicine
                     {
                         Name = medicineNameClean,
@@ -71,12 +75,79 @@ namespace PharmacyBillingService.Controllers
                         ExpiryDate = med.ExpiryDate
                     };
                     _context.Medicines.Add(newMed);
+                    beforeStock = 0;
                 }
+
+                medicineChanges.Add(new
+                {
+                    medicineName = medicineNameClean,
+                    medicineCode = med.Code,
+                    qty = med.Qty,
+                    beforeStock,
+                    afterStock = dbMed?.StockQuantity ?? med.Qty,
+                    batch = med.Batch,
+                    unit = med.Unit
+                });
             }
 
             await _context.SaveChangesAsync();
 
+            // Log import event for inventory history
+            _context.EventLogs.Add(new EventLog
+            {
+                EventType = "import.created",
+                Payload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    importBillId = importBill.Id,
+                    code = importBill.Code,
+                    supplierCode = importBill.SupplierCode,
+                    supplierName = importBill.SupplierName,
+                    medicines = medicineChanges
+                }),
+                Status = "Success",
+                Timestamp = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+
             return Ok(importBill);
+        }
+
+        [HttpPut("{id}")]
+        public async Task<ActionResult<ImportBill>> PutImportBill(int id, ImportBill importBill)
+        {
+            var existing = await _context.ImportBills
+                .Include(ib => ib.Medications)
+                .FirstOrDefaultAsync(ib => ib.Id == id);
+
+            if (existing == null) return NotFound();
+
+            existing.SupplierCode = importBill.SupplierCode;
+            existing.SupplierName = importBill.SupplierName;
+            existing.Date = importBill.Date;
+            existing.Creator = importBill.Creator;
+            existing.Note = importBill.Note;
+            existing.GoodsTotal = importBill.GoodsTotal;
+            existing.DiscountTotal = importBill.DiscountTotal;
+            existing.VatTotal = importBill.VatTotal;
+            existing.FinalTotal = importBill.FinalTotal;
+
+            _context.ImportBillMedications.RemoveRange(existing.Medications);
+            existing.Medications = importBill.Medications.Select(m => new ImportBillMedication
+            {
+                Code = m.Code,
+                Name = m.Name,
+                Batch = m.Batch,
+                ExpiryDate = m.ExpiryDate,
+                Qty = m.Qty,
+                Unit = m.Unit,
+                Price = m.Price,
+                Total = m.Total
+            }).ToList();
+
+            await _context.SaveChangesAsync();
+
+            return Ok(existing);
         }
     }
 }
