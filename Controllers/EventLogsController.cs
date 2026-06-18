@@ -8,7 +8,7 @@ namespace PharmacyBillingService.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin, Pharmacist, Cashier")]
     public class EventLogsController : ControllerBase
     {
         private readonly PharmacyDbContext _context;
